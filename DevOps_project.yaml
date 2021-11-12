@@ -1,0 +1,280 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  DevOps Project:
+  In the Playground 02 Account, create a cloudformation stack that consists of three main resources in playground-02-vpc:
+    - load balancer
+    - application ec2 instance
+    - database ec2 instance
+  Notes: Before creating new stack with this template, I have created an IAM role named "test" with AmazonEC2RoleforSSM policy, and created an IAM user has ECR access permission and saved the access key and secret key
+Parameters:
+  InstanceTypeForApplication:
+    Description: application ec2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t1.micro
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+      - m1.small
+      - m1.medium
+      - m1.large
+      - m1.xlarge
+      - m2.xlarge
+      - m2.2xlarge
+      - m2.4xlarge
+      - m3.medium
+      - m3.large
+      - m3.xlarge
+      - m3.2xlarge
+      - m4.large
+      - m4.xlarge
+      - m4.2xlarge
+      - m4.4xlarge
+      - m4.10xlarge
+      - c1.medium
+      - c1.xlarge
+      - c3.large
+      - c3.xlarge
+      - c3.2xlarge
+      - c3.4xlarge
+      - c3.8xlarge
+      - c4.large
+      - c4.xlarge
+      - c4.2xlarge
+      - c4.4xlarge
+      - c4.8xlarge
+      - g2.2xlarge
+      - g2.8xlarge
+      - r3.large
+      - r3.xlarge
+      - r3.2xlarge
+      - r3.4xlarge
+      - r3.8xlarge
+      - i2.xlarge
+      - i2.2xlarge
+      - i2.4xlarge
+      - i2.8xlarge
+      - d2.xlarge
+      - d2.2xlarge
+      - d2.4xlarge
+      - d2.8xlarge
+      - hi1.4xlarge
+      - hs1.8xlarge
+      - cr1.8xlarge
+      - cc2.8xlarge
+      - cg1.4xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  InstanceTypeForDB:
+    Description: database ec2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t1.micro
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+      - m1.small
+      - m1.medium
+      - m1.large
+      - m1.xlarge
+      - m2.xlarge
+      - m2.2xlarge
+      - m2.4xlarge
+      - m3.medium
+      - m3.large
+      - m3.xlarge
+      - m3.2xlarge
+      - m4.large
+      - m4.xlarge
+      - m4.2xlarge
+      - m4.4xlarge
+      - m4.10xlarge
+      - c1.medium
+      - c1.xlarge
+      - c3.large
+      - c3.xlarge
+      - c3.2xlarge
+      - c3.4xlarge
+      - c3.8xlarge
+      - c4.large
+      - c4.xlarge
+      - c4.2xlarge
+      - c4.4xlarge
+      - c4.8xlarge
+      - g2.2xlarge
+      - g2.8xlarge
+      - r3.large
+      - r3.xlarge
+      - r3.2xlarge
+      - r3.4xlarge
+      - r3.8xlarge
+      - i2.xlarge
+      - i2.2xlarge
+      - i2.4xlarge
+      - i2.8xlarge
+      - d2.xlarge
+      - d2.2xlarge
+      - d2.4xlarge
+      - d2.8xlarge
+      - hi1.4xlarge
+      - hs1.8xlarge
+      - cr1.8xlarge
+      - cc2.8xlarge
+      - cg1.4xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  AccessLocation:
+    Description: The IP address range that can be used to access load balancer
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  CredentialAccessKey:
+    Description: aws access key ID of the created user for ECR authentication
+    Type: String
+    NoEcho: 'true'
+  CredentialSecretKey:
+    Description: aws secret access key of the created user for ECR authentication
+    Type: String
+    NoEcho: 'true'  
+  SubnetToDeployApplication:
+    Description: Choose the subnet to deploy application ec2 instance 
+    Type: AWS::EC2::Subnet::Id
+Resources:
+# ELB related resources
+  ELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access via port 80
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: !Ref AccessLocation
+      VpcId: vpc-09777a8a81cc2e38b   # VPC ID of playground-02-vpc
+      Tags:
+        - Key: Name
+          Value: ELBSecurityGroup
+  ElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets: 
+        - 'subnet-0c206e8ec08722546' # playground-02-vpc-PublicSubnet1a-pub in us-east-1a
+        - 'subnet-0f7f01274b48989b6' # playground-02-vpc-PublicSubnet1b-pub in us-east-1b
+        - 'subnet-080b8a3dab6c323fa' # playground-02-vpc-PublicSubnet1c-pub in us-east-1c
+      Name: ElasticLoadBalancer
+      SecurityGroups: 
+        - !GetAtt "ELBSecurityGroup.GroupId"  
+  ELBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref ELBTargetGroup
+      LoadBalancerArn: !Ref ElasticLoadBalancer
+      Port: '80'
+      Protocol: HTTP
+  ELBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 15
+      HealthyThresholdCount: 5
+      Matcher:
+        HttpCode: '200'
+      Name: ELBTargetGroup
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 3
+      VpcId: vpc-09777a8a81cc2e38b # manually use the vpc id, may need to optimize this later
+      Targets:
+      - Id: !Ref ApplicationEC2Instance
+        Port: 80
+# application related resources
+  APPSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow ELB access via port 80    
+      SecurityGroupIngress:  
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          SourceSecurityGroupId: !GetAtt "ELBSecurityGroup.GroupId"            
+      VpcId: vpc-09777a8a81cc2e38b
+      Tags:
+        - Key: Name
+          Value: APPSecurityGroup
+  ApplicationEC2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: DBEC2Instance  # create DB instance before app instance
+    Properties: 
+      InstanceType: !Ref InstanceTypeForApplication
+      ImageId: ami-083654bd07b5da81d  # ubuntu ami in us-east-1
+      SecurityGroupIds: 
+        - !Ref APPSecurityGroup
+      SubnetId: !Ref SubnetToDeployApplication # create the app ec2 instance in PrivateSubnet1a-app for now, need to optimize this later
+      Tags:
+        - Key: Name
+          Value: ApplicationEC2Instance
+      IamInstanceProfile: test        # assign instance with a role with AmazonEC2RoleforSSM Policy, we can use SSM to ssh the instance
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su
+          apt-get update
+          apt-get install docker.io -y
+          apt-get install awscli -y
+          aws configure set aws_access_key_id ${CredentialAccessKey}
+          aws configure set aws_secret_access_key ${CredentialSecretKey}
+          aws configure set default.region us-east-1
+          docker login -u AWS -p $(aws ecr get-login-password --region us-east-1) 080651080052.dkr.ecr.us-east-1.amazonaws.com
+          docker pull 080651080052.dkr.ecr.us-east-1.amazonaws.com/devops:latest
+          docker run -p 80:5000 080651080052.dkr.ecr.us-east-1.amazonaws.com/devops:latest
+# DB related resources
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow ec2 instance access via port 27017    
+      SecurityGroupIngress:  
+        - IpProtocol: tcp
+          FromPort: '27017'
+          ToPort: '27017'
+          SourceSecurityGroupId: !GetAtt "APPSecurityGroup.GroupId" 
+      VpcId: vpc-09777a8a81cc2e38b
+      Tags:
+        - Key: Name
+          Value: DBSecurityGroup
+  DBEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties: 
+      InstanceType: !Ref InstanceTypeForDB
+      ImageId: ami-083654bd07b5da81d  # ubuntu ami in us-east-1
+      Tags:
+        - Key: Name
+          Value: DBEC2Instance
+      IamInstanceProfile: test        # assign instance with a role with AmazonEC2RoleforSSM Policy, we can use SSM to ssh the instance
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          PrivateIpAddress: 172.24.108.88
+          SubnetId: subnet-05f5eea9f97b66e83 # create the db ec2 instance in PrivateSubnet2a-data as it requries ip to be 172.24.108.88
+          GroupSet: 
+            - !Ref DBSecurityGroup
+      UserData: !Base64 |
+        #!/bin/bash -ex
+        apt update
+        apt -y install mongodb-clients mongodb-server wget
+        sed -i -e '/^bind_ip/s/^.*$/bind_ip=0.0.0.0/' /etc/mongodb.conf
+        sudo service mongodb restart
+        wget --quiet https://raw.githubusercontent.com/mongodb/docs-assets/primer-dataset/primer-dataset.json
+        mongoimport --db example_data --collection restaurants --drop --file primer-dataset.json
+Outputs:
+  LoadBalancerURL:
+    Description: URL of ELB to test the result
+    Value: !GetAtt ElasticLoadBalancer.DNSName
