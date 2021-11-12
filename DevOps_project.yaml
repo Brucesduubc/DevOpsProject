@@ -146,16 +146,23 @@ Parameters:
   SubnetToDeployApplication:
     Description: Choose the subnet to deploy application ec2 instance 
     Type: AWS::EC2::Subnet::Id
+  ELBListenOnPort:   # the ELB listen port is configurable, we can select between 80 and 5000
+    Description: which port ELB listen on
+    Type: String
+    Default: 80
+    AllowedValues:
+      - 80
+      - 5000
 Resources:
 # ELB related resources
   ELBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Enable HTTP access via port 80
+      GroupDescription: Enable access via selected port
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: '80'
-          ToPort: '80'
+          FromPort: !Ref ELBListenOnPort
+          ToPort: !Ref ELBListenOnPort
           CidrIp: !Ref AccessLocation
       VpcId: vpc-09777a8a81cc2e38b   # VPC ID of playground-02-vpc
       Tags:
@@ -178,7 +185,7 @@ Resources:
       - Type: forward
         TargetGroupArn: !Ref ELBTargetGroup
       LoadBalancerArn: !Ref ElasticLoadBalancer
-      Port: '80'
+      Port: !Ref ELBListenOnPort
       Protocol: HTTP
   ELBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -190,22 +197,22 @@ Resources:
       Matcher:
         HttpCode: '200'
       Name: ELBTargetGroup
-      Port: 80
+      Port: !Ref ELBListenOnPort
       Protocol: HTTP
       UnhealthyThresholdCount: 3
-      VpcId: vpc-09777a8a81cc2e38b # manually use the vpc id, may need to optimize this later
+      VpcId: vpc-09777a8a81cc2e38b 
       Targets:
       - Id: !Ref ApplicationEC2Instance
-        Port: 80
+        Port: !Ref ELBListenOnPort
 # application related resources
   APPSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow ELB access via port 80    
+      GroupDescription: Allow ELB access via selected port    
       SecurityGroupIngress:  
         - IpProtocol: tcp
-          FromPort: '80'
-          ToPort: '80'
+          FromPort: !Ref ELBListenOnPort
+          ToPort: !Ref ELBListenOnPort
           SourceSecurityGroupId: !GetAtt "ELBSecurityGroup.GroupId"            
       VpcId: vpc-09777a8a81cc2e38b
       Tags:
@@ -219,7 +226,7 @@ Resources:
       ImageId: ami-083654bd07b5da81d  # ubuntu ami in us-east-1
       SecurityGroupIds: 
         - !Ref APPSecurityGroup
-      SubnetId: !Ref SubnetToDeployApplication # create the app ec2 instance in PrivateSubnet1a-app for now, need to optimize this later
+      SubnetId: !Ref SubnetToDeployApplication 
       Tags:
         - Key: Name
           Value: ApplicationEC2Instance
@@ -236,7 +243,7 @@ Resources:
           aws configure set default.region us-east-1
           docker login -u AWS -p $(aws ecr get-login-password --region us-east-1) 080651080052.dkr.ecr.us-east-1.amazonaws.com
           docker pull 080651080052.dkr.ecr.us-east-1.amazonaws.com/devops:latest
-          docker run -p 80:5000 080651080052.dkr.ecr.us-east-1.amazonaws.com/devops:latest
+          docker run -p ${ELBListenOnPort}:5000 080651080052.dkr.ecr.us-east-1.amazonaws.com/devops:latest
 # DB related resources
   DBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
